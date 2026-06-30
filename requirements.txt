@@ -1,0 +1,10 @@
+python-dotenv
+jupyterlab
+ipywidgets
+urllib3
+gradio
+google-generativeai
+groq
+black
+pymongo
+pandas
