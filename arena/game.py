@@ -63,6 +63,7 @@ class Game:
             if model in LLM.all_supported_model_names()
         }
 
+
     def record(self):
         """
         Store the results of this game in the DB

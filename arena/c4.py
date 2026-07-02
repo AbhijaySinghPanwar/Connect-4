@@ -5,6 +5,9 @@ import gradio as gr
 import pandas as pd
 
 
+
+
+
 css = """
 .dataframe-fix .table-wrap {
     min-height: 800px;
@@ -51,18 +54,18 @@ def format_records_for_table(games):
         columns=["When", "Red Player", "Yellow Player", "Winner"],
     )
 
-    # Remove microseconds while preserving datetime format
-    df["When"] = pd.to_datetime(df["When"]).dt.floor("s")
+    # Remove microseconds while preserving datetime format and cast to string for JSON serialization
+    df["When"] = pd.to_datetime(df["When"]).dt.floor("s").astype(str)
 
     return df
 
 
 def format_ratings_for_table(ratings):
     """
-    Turn the ratings into a List of Lists for the Gradio Dataframe
+    Turn the ratings into a Pandas DataFrame for the Gradio Dataframe
     """
     items = sorted(ratings.items(), key=lambda x: x[1], reverse=True)
-    return [[item[0], int(round(item[1]))] for item in items]
+    return pd.DataFrame(items, columns=["Player", "ELO"])
 
 
 def load_callback(red_llm, yellow_llm):
@@ -84,12 +87,13 @@ def load_callback(red_llm, yellow_llm):
     )
 
 
-def leaderboard_callback(game):
+def leaderboard_callback(*args):
     """
     Callback called when the user switches to the Leaderboard tab. Load in the results.
     """
     records_df = format_records_for_table(Game.get_games())
     ratings_df = format_ratings_for_table(Game.get_ratings())
+    print(f"leaderboard_callback executed. records: {len(records_df)}, ratings: {len(ratings_df)}")
     return records_df, ratings_df
 
 
@@ -229,10 +233,6 @@ def make_display():
                                 run_button = gr.Button("Run game", variant="primary")
                             with gr.Column(scale=1):
                                 reset_button = gr.Button("Start Over", variant="stop")
-                        with gr.Row():
-                            gr.HTML(
-                                '<div style="text-align: center;font-size:16px">See the <a href="https://youtu.be/0OF-ChlKOQY">video walkthrough</a> of the code and <a href="https://github.com/ed-donner/connect">clone</a> the repo</div>'
-                            )
 
                     with gr.Column(scale=1):
                         yellow_thoughts, yellow_dropdown = player_section(
@@ -244,9 +244,8 @@ def make_display():
                         ratings_df = gr.Dataframe(
                             headers=["Player", "ELO"],
                             label="Ratings (recent models only)",
-                            column_widths=[2, 1],
                             wrap=True,
-                            col_count=2,
+                            column_count=2,
                             row_count=10,
                             max_height=800,
                             elem_classes=["dataframe-fix"],
@@ -255,18 +254,12 @@ def make_display():
                         results_df = gr.Dataframe(
                             headers=["When", "Red Player", "Yellow Player", "Winner"],
                             label="Game History",
-                            column_widths=[2, 2, 2, 1],
                             wrap=True,
-                            col_count=4,
+                            column_count=4,
                             row_count=10,
                             max_height=800,
                             elem_classes=["dataframe-fix"],
                         )
-                with gr.Row():
-                    gr.HTML(
-                        '<div style="text-align: center;font-size:16px">See the <a href="https://youtu.be/0OF-ChlKOQY">video walkthrough</a> of the code and <a href="https://github.com/ed-donner/connect">clone</a> the repo</div>'
-                    )
-
         blocks.load(
             load_callback,
             inputs=[red_dropdown, yellow_dropdown],
@@ -328,7 +321,10 @@ def make_display():
         )
 
         leaderboard_tab.select(
-            leaderboard_callback, inputs=[game], outputs=[results_df, ratings_df]
+            leaderboard_callback, outputs=[results_df, ratings_df]
+        )
+        blocks.load(
+            leaderboard_callback, outputs=[results_df, ratings_df]
         )
 
     return blocks

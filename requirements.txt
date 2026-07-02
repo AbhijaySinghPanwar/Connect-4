@@ -6,5 +6,5 @@ gradio
 google-generativeai
 groq
 black
-pymongo
+pymongo[srv]
 pandas

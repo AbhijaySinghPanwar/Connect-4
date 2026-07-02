@@ -35,10 +35,10 @@ You must pick a column for your move. You must pick one of the following legal m
 You should respond in JSON according to this spec:
 
 {{
-    "evaluation": "my assessment of the board",
-    "threats": "any threats from my opponent that I should block",
-    "opportunities": "my best chances to win",
-    "strategy": "my thought process",
+    "evaluation": "my assessment of the board (one or two short sentences)",
+    "threats": "any threats from my opponent that I should block (one or two short sentences)",
+    "opportunities": "my best chances to win (one or two short sentences)",
+    "strategy": "my thought process (one or two short sentences)",
     "move_column": "one letter from this list of legal moves: {legal_moves}"
 }}
 
@@ -60,12 +60,14 @@ Here's another way of looking at the board visually, where R represents a red co
 Your final response should be only in JSON strictly according to this spec:
 
 {{
-    "evaluation": "my assessment of the board",
-    "threats": "any threats from my opponent that I should block",
-    "opportunities": "my best chances to win",
-    "strategy": "my thought process",
+    "evaluation": "my assessment of the board (one or two short sentences)",
+    "threats": "any threats from my opponent that I should block (one or two short sentences)",
+    "opportunities": "my best chances to win (one or two short sentences)",
+    "strategy": "my thought process (one or two short sentences)",
     "move_column": "one of {legal_moves} which are the legal moves"
 }}
+
+Keep each reasoning field to at most two short sentences.
 
 For example, the following could be a response:
 
@@ -94,19 +96,47 @@ You must pick one of these letters for your move_column: {legal_moves}{illegal_m
 
     def process_move(self, reply: str, board) -> bool:
         """
-        Interpret the reply and make the move; if the move is illegal, then the current player loses
+        Interpret the reply and make the move; if the move is illegal, then the current player loses.
+
+        Move parsing rules (evidence from audit Step 5, Failures 3 and 4):
+        - Accept "D", "d", "D ", " D"  (strip whitespace, uppercase)
+        - Reject "Column D", "Move D", "" or any multi-character value
+          (cols.find returns -1, caught by the legality check)
+        - Never silently guess; an ambiguous or verbose value raises ValueError
         """
         try:
             logging.info(f"[Player {self.color}] Raw reply from LLM: {reply[:300]}")
+
+            # Minimal single-letter shortcut: handle {D} style responses
             if len(reply) == 3 and reply[0] == "{" and reply[2] == "}":
                 reply = f'{{"move_column": "{reply[1]}"}}'
+
             result = json.loads(reply)
-            move = result.get("move_column") or "missing"
-            move = str(move).upper()
-            col = cols.find(move)
-            logging.info(f"[Player {self.color}] Parsed move_column='{move}', resolved col={col}")
+
+            # Extract and normalise move_column
+            move_raw = str(result.get("move_column") or "")
+            move = move_raw.strip().upper()
+
+            logging.info(
+                f"[Player {self.color}] move_column raw={move_raw!r} normalised={move!r}"
+            )
+
+            # Require exactly one character that maps to a valid column (A–G).
+            # Multi-word values such as "Column D" produce len > 1 → col = -1.
+            # Blank or missing values produce len == 0 → col = -1.
+            if len(move) == 1 and move in cols:
+                col = cols.find(move)
+            else:
+                col = -1
+                logging.error(
+                    f"[Player {self.color}] move_column={move_raw!r} is not a single "
+                    f"valid column letter — rejected"
+                )
+
             if not (0 <= col <= 6) or board.height(col) == 6:
-                raise ValueError(f"Illegal move: move_column='{move}', col={col}")
+                raise ValueError(
+                    f"Illegal move: move_column={move_raw!r}, col={col}"
+                )
 
             board.move(col)
             self.evaluation = result.get("evaluation") or ""
@@ -114,6 +144,7 @@ You must pick one of these letters for your move_column: {legal_moves}{illegal_m
             self.opportunities = result.get("opportunities") or ""
             self.strategy = result.get("strategy") or ""
             return True
+
         except Exception as e:
             logging.error(f"[Player {self.color}] Exception processing move: {e}")
             return False
@@ -144,12 +175,17 @@ You must pick one of these letters for your move_column: {legal_moves}{illegal_m
             if success:
                 return
             else:
-                logging.warning(f"Player {self.color} attempt {attempts} resulted in an illegal move or error.")
+                logging.warning(
+                    f"Player {self.color} attempt {attempts} resulted in an illegal move or error."
+                )
                 if attempts <= retries:
                     logging.info(f"Retrying move for Player {self.color}...")
                     
         # If we fail after all retries, forfeit
-        logging.error(f"Player {self.color} failed to make a legal move after {retries + 1} attempts. Forfeiting.")
+        logging.error(
+            f"Player {self.color} failed to make a legal move after "
+            f"{retries + 1} attempts. Forfeiting."
+        )
         board.forfeit = True
         board.winner = -1 * board.player
 

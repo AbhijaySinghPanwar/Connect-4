@@ -123,6 +123,7 @@ celerybeat.pid
 
 # Environments
 .env
+game_history.json
 .venv
 env/
 venv/

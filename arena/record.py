@@ -1,6 +1,7 @@
 import logging
 import os
 import math
+import json
 from datetime import datetime
 from typing import List, Dict
 from dataclasses import dataclass, asdict
@@ -19,6 +20,13 @@ class Result:
 
 COLLECTION = "connect"
 
+# Local fallback store, used only when MONGO_URI is not configured. This is
+# what makes the leaderboard/history work out-of-the-box for a local run
+# without requiring a MongoDB setup; if MONGO_URI is set, this is never used.
+_LOCAL_STORE_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "game_history.json"
+)
+
 
 def _get_collection():
     """Helper function to get MongoDB collection with error handling"""
@@ -34,14 +42,53 @@ def _get_collection():
         return None
 
 
+def _load_local_games() -> List[Result]:
+    """Read games from the local JSON fallback store."""
+    if not os.path.exists(_LOCAL_STORE_PATH):
+        return []
+    try:
+        with open(_LOCAL_STORE_PATH, "r") as f:
+            raw = json.load(f)
+        results = []
+        for entry in raw:
+            entry = dict(entry)
+            entry["when"] = datetime.fromisoformat(entry["when"])
+            results.append(Result(**entry))
+        return results
+    except Exception as e:
+        logging.error("Error reading local game history file")
+        logging.exception(e)
+        return []
+
+
+def _append_local_game(result: Result) -> bool:
+    """Append a game to the local JSON fallback store."""
+    try:
+        games = _load_local_games()
+        games.append(result)
+        serializable = []
+        for g in games:
+            d = asdict(g)
+            d["when"] = d["when"].isoformat()
+            serializable.append(d)
+        with open(_LOCAL_STORE_PATH, "w") as f:
+            json.dump(serializable, f, indent=2)
+        return True
+    except Exception as e:
+        logging.error("Failed to record a game in the local fallback store")
+        logging.exception(e)
+        return False
+
+
 def record_game(result: Result) -> bool:
     """
-    Store the results in the database, if database is available.
-    Returns True if successful, False if database is unavailable.
+    Store the results in the database if available, otherwise fall back to
+    a local JSON file so the leaderboard/history still work without MongoDB.
+    Returns True if the result was successfully stored somewhere.
     """
     collection = _get_collection()
     if collection is None:
-        return False
+        return _append_local_game(result)
 
     # Convert Result object to dictionary for MongoDB storage
     game_dict = asdict(result)
@@ -58,11 +105,11 @@ def record_game(result: Result) -> bool:
 def get_games() -> List[Result]:
     """
     Return all games in the order that they were played.
-    Returns empty list if database is unavailable.
+    Falls back to the local JSON file if MongoDB is unavailable.
     """
     collection = _get_collection()
     if collection is None:
-        return []
+        return _load_local_games()
 
     try:
         # Sort by _id to maintain insertion order
@@ -79,6 +126,15 @@ def get_games() -> List[Result]:
     except Exception as e:
         logging.error("Error getting games")
         logging.exception(e)
+
+        print("\n========== GET_GAMES EXCEPTION ==========")
+        print(repr(e))
+
+        import traceback
+        traceback.print_exc()
+
+        print("=========================================\n")
+
         return []
 
 

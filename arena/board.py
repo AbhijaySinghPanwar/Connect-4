@@ -158,7 +158,7 @@ class Board:
         self.latest_x, self.latest_y = x, y
         if winner := self.wins():
             self.winner = winner
-        elif not self.legal_moves:
+        elif not self.legal_moves():
             self.draw = True
         else:
             self.player = -1 * self.player

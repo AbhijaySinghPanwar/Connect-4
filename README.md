@@ -22,7 +22,7 @@ It has been great fun making this Arena and watching LLMs duke it out!
 
 Quick links:
 - The [Live Arena](https://edwarddonner.com/connect-four/)  courtesy of amazing HuggingFace Spaces
-- The [GitHub repo](https://github.com/AbhijaySinghPanwar/Connect-4) for the code
+- The [GitHub repo](https://github.com/ed-donner/connect) for the code
 - My [video walkthrough](https://youtu.be/0OF-ChlKOQY) of the code
 - My [LinkedIn](https://www.linkedin.com/in/eddonner/) - I love connecting!
 
@@ -32,8 +32,8 @@ If you'd like to learn more about this:
 
 ## Installing the code
 
-1. Clone the repo with `git clone https://github.com/AbhijaySinghPanwar/Connect-4.git`
-2. Change to the project directory with `cd connect-main`
+1. Clone the repo with `git clone https://github.com/ed-donner/connect.git`
+2. Change to the project directory with `cd connect`
 3. Create a python virtualenv with `python -m venv venv`
 4. Activate your environment with either `venv\Scripts\activate` on Windows, or `source venv/bin/activate` on Mac/Linux
 5. Then run `pip install -r requirements.txt` to install the packages
